@@ -816,7 +816,7 @@ func handlerWsStreamRequestApi(wsStreamPath WsStreamPath, listenKey string, apiT
 	case WS_SPOT_API_PATH, WS_FUTURE_API_PATH:
 		host = getWsApiWsApi(apiType)
 	case WS_STREAM_PATH, WS_ACCOUNT_PATH:
-		host = getWsStreamWsApi(apiType, isGzip)
+		host, _ = url.QueryUnescape(getWsStreamWsApi(apiType, isGzip)) //zsk修改  panic: parse "wss://fstream.binance.com%2Fpm/stream": invalid URL escape "%2F"
 	}
 
 	u := url.URL{

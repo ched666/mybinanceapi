@@ -247,7 +247,7 @@ func (ws *WsStreamClient) OpenConn() error {
 	if ws.errChan == nil {
 		ws.errChan = make(chan error)
 	}
-	apiUrl := handlerWsStreamRequestApi(ws.wsStreamPath, ws.listenKey, ws.apiType, ws.isGzip)
+	apiUrl, _ := url.QueryUnescape(handlerWsStreamRequestApi(ws.wsStreamPath, ws.listenKey, ws.apiType, ws.isGzip)) //zsk修改  panic: parse "wss://fstream.binance.com%2Fpm/stream": invalid URL escape "%2F"
 	if ws.conn == nil {
 		conn, err := wsStreamServe(apiUrl, ws.isGzip, ws.resultChan, ws.errChan)
 		if err != nil {
@@ -816,7 +816,7 @@ func handlerWsStreamRequestApi(wsStreamPath WsStreamPath, listenKey string, apiT
 	case WS_SPOT_API_PATH, WS_FUTURE_API_PATH:
 		host = getWsApiWsApi(apiType)
 	case WS_STREAM_PATH, WS_ACCOUNT_PATH:
-		host, _ = url.QueryUnescape(getWsStreamWsApi(apiType, isGzip)) //zsk修改  panic: parse "wss://fstream.binance.com%2Fpm/stream": invalid URL escape "%2F"
+		host = getWsStreamWsApi(apiType, isGzip)
 	}
 
 	u := url.URL{

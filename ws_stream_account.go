@@ -2,9 +2,10 @@ package mybinanceapi
 
 import (
 	"fmt"
-	"github.com/bwmarrin/snowflake"
 	"strings"
 	"time"
+
+	"github.com/bwmarrin/snowflake"
 )
 
 type Payload[T any] struct {
@@ -43,6 +44,27 @@ type WsSwapPayload struct {
 	OrderTradeUpdatePayload *Payload[WsSwapPayloadOrderTradeUpdate]
 }
 
+// zsk修改
+type WsPmUPayload struct {
+	Ws                      *PmUWsStreamClient
+	Id                      int64
+	AccountUpdatePayload    *Payload[WsPmUPayloadAccountUpdate]
+	OrderTradeUpdatePayload *Payload[WsPmUPayloadOrderTradeUpdate]
+}
+type WsPmCPayload struct {
+	Ws                      *PmCWsStreamClient
+	Id                      int64
+	AccountUpdatePayload    *Payload[WsPmCPayloadAccountUpdate]
+	OrderTradeUpdatePayload *Payload[WsPmCPayloadOrderTradeUpdate]
+}
+type WsPmMPayload struct {
+	Ws                             *PmMWsStreamClient
+	Id                             int64
+	OutboundAccountPositionPayload *Payload[WsPmMPayloadOutboundAccountPosition]
+	BalanceUpdatePayload           *Payload[WsPmMPayloadBalanceUpdate]
+	ExecutionReportPayload         *Payload[WsPmMPayloadExecutionReport]
+}
+
 func (payload *WsSpotPayload) Close() {
 	if _, ok := payload.Ws.wsSpotPayloadMap.Load(payload.Id); ok {
 		payload.Ws.wsSpotPayloadMap.Delete(payload.Id)
@@ -63,6 +85,30 @@ func (payload *WsSwapPayload) Close() {
 		payload.Ws.wsSwapPayloadMap.Delete(payload.Id)
 		payload.AccountUpdatePayload.closeChan <- struct{}{}
 		payload.OrderTradeUpdatePayload.closeChan <- struct{}{}
+	}
+}
+
+// zsk修改
+func (payload *WsPmUPayload) Close() {
+	if _, ok := payload.Ws.wsPmUPayloadMap.Load(payload.Id); ok {
+		payload.Ws.wsPmUPayloadMap.Delete(payload.Id)
+		payload.AccountUpdatePayload.closeChan <- struct{}{}
+		payload.OrderTradeUpdatePayload.closeChan <- struct{}{}
+	}
+}
+func (payload *WsPmCPayload) Close() {
+	if _, ok := payload.Ws.wsPmCPayloadMap.Load(payload.Id); ok {
+		payload.Ws.wsPmCPayloadMap.Delete(payload.Id)
+		payload.AccountUpdatePayload.closeChan <- struct{}{}
+		payload.OrderTradeUpdatePayload.closeChan <- struct{}{}
+	}
+}
+func (payload *WsPmMPayload) Close() {
+	if _, ok := payload.Ws.wsPmMPayloadMap.Load(payload.Id); ok {
+		payload.Ws.wsPmMPayloadMap.Delete(payload.Id)
+		payload.OutboundAccountPositionPayload.closeChan <- struct{}{}
+		payload.BalanceUpdatePayload.closeChan <- struct{}{}
+		payload.ExecutionReportPayload.closeChan <- struct{}{}
 	}
 }
 
@@ -138,6 +184,82 @@ func (ws *SwapWsStreamClient) CreatePayload() (*WsSwapPayload, error) {
 		},
 	}
 	ws.wsSwapPayloadMap.Store(id, payload)
+	return payload, nil
+}
+
+// zsk修改
+func (ws *PmUWsStreamClient) CreatePayload() (*WsPmUPayload, error) {
+	node, err := snowflake.NewNode(1)
+	if err != nil {
+		return nil, err
+	}
+	id := node.Generate().Int64()
+	payload := &WsPmUPayload{
+		Ws: ws,
+		Id: id,
+		AccountUpdatePayload: &Payload[WsPmUPayloadAccountUpdate]{
+			resultChan: make(chan WsPmUPayloadAccountUpdate),
+			errChan:    make(chan error),
+			closeChan:  make(chan struct{}),
+		},
+		OrderTradeUpdatePayload: &Payload[WsPmUPayloadOrderTradeUpdate]{
+			resultChan: make(chan WsPmUPayloadOrderTradeUpdate),
+			errChan:    make(chan error),
+			closeChan:  make(chan struct{}),
+		},
+	}
+	ws.wsPmUPayloadMap.Store(id, payload)
+	return payload, nil
+}
+func (ws *PmCWsStreamClient) CreatePayload() (*WsPmCPayload, error) {
+	node, err := snowflake.NewNode(1)
+	if err != nil {
+		return nil, err
+	}
+	id := node.Generate().Int64()
+	payload := &WsPmCPayload{
+		Ws: ws,
+		Id: id,
+		AccountUpdatePayload: &Payload[WsPmCPayloadAccountUpdate]{
+			resultChan: make(chan WsPmCPayloadAccountUpdate),
+			errChan:    make(chan error),
+			closeChan:  make(chan struct{}),
+		},
+		OrderTradeUpdatePayload: &Payload[WsPmCPayloadOrderTradeUpdate]{
+			resultChan: make(chan WsPmCPayloadOrderTradeUpdate),
+			errChan:    make(chan error),
+			closeChan:  make(chan struct{}),
+		},
+	}
+	ws.wsPmCPayloadMap.Store(id, payload)
+	return payload, nil
+}
+func (ws *PmMWsStreamClient) CreatePayload() (*WsPmMPayload, error) {
+	node, err := snowflake.NewNode(1)
+	if err != nil {
+		return nil, err
+	}
+	id := node.Generate().Int64()
+	payload := &WsPmMPayload{
+		Ws: ws,
+		Id: id,
+		OutboundAccountPositionPayload: &Payload[WsPmMPayloadOutboundAccountPosition]{
+			resultChan: make(chan WsPmMPayloadOutboundAccountPosition),
+			errChan:    make(chan error),
+			closeChan:  make(chan struct{}),
+		},
+		BalanceUpdatePayload: &Payload[WsPmMPayloadBalanceUpdate]{
+			resultChan: make(chan WsPmMPayloadBalanceUpdate),
+			errChan:    make(chan error),
+			closeChan:  make(chan struct{}),
+		},
+		ExecutionReportPayload: &Payload[WsPmMPayloadExecutionReport]{
+			resultChan: make(chan WsPmMPayloadExecutionReport),
+			errChan:    make(chan error),
+			closeChan:  make(chan struct{}),
+		},
+	}
+	ws.wsPmMPayloadMap.Store(id, payload)
 	return payload, nil
 }
 
@@ -407,6 +529,209 @@ func (ws *SwapWsStreamClient) listenKeyPut() error {
 }
 func (ws *SwapWsStreamClient) listenKeyDelete() error {
 	_, err := ws.client.NewSwapListenKeyDelete().Do()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+
+// zsk修改
+func (ws *PmUWsStreamClient) ConvertToAccountWs(apiKey string, apiSecret string) (*PmUWsStreamClient, error) {
+	ws.wsStreamPath = WS_ACCOUNT_PATH
+	ws.apiKey = apiKey
+	ws.apiSecret = apiSecret
+	ws.isListenWs = true
+	b := MyBinance{}
+	ws.client = b.NewPmURestClient(apiKey, apiSecret)
+
+	err := ws.listenKeyPost()
+	if err != nil {
+		return nil, err
+	}
+	//创建一个协程定时刷新listenKey，如果已存在旧的刷新协程则不再创建
+	if ws.listenKeyRefreshStopChan == nil {
+		stopChan := make(chan struct{})
+		ws.listenKeyRefreshStopChan = &stopChan
+		go func() {
+			for {
+				select {
+				case <-time.After(ListenKeyRefreshInterval):
+					err := ws.listenKeyPut()
+					for err != nil {
+						log.Error(err)
+						time.Sleep(5 * time.Second)
+						if strings.Contains(err.Error(), "-1125") {
+							//如果是-1125错误，则Post更新
+							err = ws.listenKeyPost()
+						} else {
+							err = ws.listenKeyPut()
+						}
+					}
+				case <-*ws.listenKeyRefreshStopChan:
+					return
+				}
+			}
+		}()
+	}
+
+	return ws, nil
+}
+func (ws *PmUWsStreamClient) listenKeyPost() error {
+	res, err := ws.client.NewPmUListenKeyPost().Do()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	ws.listenKey = res.ListenKey
+	log.Debug("listenKey:", ws.listenKey)
+	return nil
+}
+func (ws *PmUWsStreamClient) listenKeyPut() error {
+	_, err := ws.client.NewPmUListenKeyPut().Do()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+func (ws *PmUWsStreamClient) listenKeyDelete() error {
+	_, err := ws.client.NewPmUListenKeyDelete().Do()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+
+func (ws *PmCWsStreamClient) ConvertToAccountWs(apiKey string, apiSecret string) (*PmCWsStreamClient, error) {
+	ws.wsStreamPath = WS_ACCOUNT_PATH
+	ws.apiKey = apiKey
+	ws.apiSecret = apiSecret
+	ws.isListenWs = true
+	b := MyBinance{}
+	ws.client = b.NewPmCRestClient(apiKey, apiSecret)
+
+	err := ws.listenKeyPost()
+	if err != nil {
+		return nil, err
+	}
+	//创建一个协程定时刷新listenKey，如果已存在旧的刷新协程则不再创建
+	if ws.listenKeyRefreshStopChan == nil {
+		stopChan := make(chan struct{})
+		ws.listenKeyRefreshStopChan = &stopChan
+		go func() {
+			for {
+				select {
+				case <-time.After(ListenKeyRefreshInterval):
+					err := ws.listenKeyPut()
+					for err != nil {
+						log.Error(err)
+						time.Sleep(5 * time.Second)
+						if strings.Contains(err.Error(), "-1125") {
+							//如果是-1125错误，则Post更新
+							err = ws.listenKeyPost()
+						} else {
+							err = ws.listenKeyPut()
+						}
+					}
+				case <-*ws.listenKeyRefreshStopChan:
+					return
+				}
+			}
+		}()
+	}
+
+	return ws, nil
+}
+
+func (ws *PmCWsStreamClient) listenKeyPost() error {
+	res, err := ws.client.NewPmCListenKeyPost().Do()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	ws.listenKey = res.ListenKey
+	log.Debug("listenKey:", ws.listenKey)
+	return nil
+}
+func (ws *PmCWsStreamClient) listenKeyPut() error {
+	_, err := ws.client.NewPmCListenKeyPut().Do()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+func (ws *PmCWsStreamClient) listenKeyDelete() error {
+	_, err := ws.client.NewPmCListenKeyDelete().Do()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+
+func (ws *PmMWsStreamClient) ConvertToAccountWs(apiKey string, apiSecret string) (*PmMWsStreamClient, error) {
+	ws.wsStreamPath = WS_ACCOUNT_PATH
+	ws.apiKey = apiKey
+	ws.apiSecret = apiSecret
+	ws.isListenWs = true
+	b := MyBinance{}
+	ws.client = b.NewPmMRestClient(apiKey, apiSecret)
+
+	err := ws.listenKeyPost()
+	if err != nil {
+		return nil, err
+	}
+	//创建一个协程定时刷新listenKey，如果已存在旧的刷新协程则不再创建
+	if ws.listenKeyRefreshStopChan == nil {
+		stopChan := make(chan struct{})
+		ws.listenKeyRefreshStopChan = &stopChan
+		go func() {
+			for {
+				select {
+				case <-time.After(ListenKeyRefreshInterval):
+					err := ws.listenKeyPut()
+					for err != nil {
+						log.Error(err)
+						time.Sleep(5 * time.Second)
+						if strings.Contains(err.Error(), "-1125") {
+							//如果是-1125错误，则Post更新
+							err = ws.listenKeyPost()
+						} else {
+							err = ws.listenKeyPut()
+						}
+					}
+				case <-*ws.listenKeyRefreshStopChan:
+					return
+				}
+			}
+		}()
+	}
+
+	return ws, nil
+}
+func (ws *PmMWsStreamClient) listenKeyPost() error {
+	res, err := ws.client.NewPmMListenKeyPost().Do()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	ws.listenKey = res.ListenKey
+	log.Debug("listenKey:", ws.listenKey)
+	return nil
+}
+func (ws *PmMWsStreamClient) listenKeyPut() error {
+	_, err := ws.client.NewPmMListenKeyPut().Do()
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+func (ws *PmMWsStreamClient) listenKeyDelete() error {
+	_, err := ws.client.NewPmMListenKeyDelete().Do()
 	if err != nil {
 		log.Error(err)
 		return err

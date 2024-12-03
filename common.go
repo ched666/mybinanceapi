@@ -114,6 +114,7 @@ const (
 	BINANCE_API_SPOT_HTTP        = "api.binance.com"
 	BINANCE_API_FUTURE_HTTP      = "fapi.binance.com"
 	BINANCE_API_SWAP_HTTP        = "dapi.binance.com"
+	BINANCE_API_PM_HTTP          = "papi.binance.com" //zsk修改
 	TEST_BINANCE_API_SPOT_HTTP   = "testnet.binance.vision"
 	TEST_BINANCE_API_FUTURE_HTTP = "testnet.binancefuture.com"
 	TEST_BINANCE_API_SWAP_HTTP   = "testnet.binancefuture.com"
@@ -139,6 +140,9 @@ const (
 	SPOT ApiType = iota
 	FUTURE
 	SWAP
+	PMU //zsk修改
+	PMC
+	PMM
 )
 
 func (apiType *ApiType) String() string {
@@ -149,6 +153,12 @@ func (apiType *ApiType) String() string {
 		return "FUTURE"
 	case SWAP:
 		return "SWAP"
+	case PMU: //zsk修改
+		return "PMU"
+	case PMC:
+		return "PMC"
+	case PMM:
+		return "PMM"
 	}
 	return ""
 }
@@ -164,6 +174,9 @@ type RestClient struct {
 type SpotRestClient RestClient
 type FutureRestClient RestClient
 type SwapRestClient RestClient
+type PmURestClient RestClient //zsk修改
+type PmCRestClient RestClient
+type PmMRestClient RestClient
 
 func (*MyBinance) NewSpotRestClient(apiKey string, apiSecret string) *SpotRestClient {
 	client := &SpotRestClient{
@@ -185,6 +198,36 @@ func (*MyBinance) NewFutureRestClient(apiKey string, apiSecret string) *FutureRe
 }
 func (*MyBinance) NewSwapRestClient(apiKey string, apiSecret string) *SwapRestClient {
 	client := &SwapRestClient{
+		&Client{
+			ApiKey:    apiKey,
+			ApiSecret: apiSecret,
+		},
+	}
+	return client
+}
+
+// zsk修改
+func (*MyBinance) NewPmURestClient(apiKey string, apiSecret string) *PmURestClient {
+	client := &PmURestClient{
+		&Client{
+			ApiKey:    apiKey,
+			ApiSecret: apiSecret,
+		},
+	}
+	return client
+}
+func (*MyBinance) NewPmCRestClient(apiKey string, apiSecret string) *PmCRestClient {
+	client := &PmCRestClient{
+		&Client{
+			ApiKey:    apiKey,
+			ApiSecret: apiSecret,
+		},
+	}
+	return client
+}
+
+func (*MyBinance) NewPmMRestClient(apiKey string, apiSecret string) *PmMRestClient {
+	client := &PmMRestClient{
 		&Client{
 			ApiKey:    apiKey,
 			ApiSecret: apiSecret,
@@ -358,6 +401,12 @@ func BinanceGetRestHostByApiType(apiType ApiType) string {
 		case TEST_NET:
 			return TEST_BINANCE_API_SWAP_HTTP
 		}
+	case PMU: //zsk修改
+		return BINANCE_API_PM_HTTP
+	case PMC:
+		return BINANCE_API_PM_HTTP
+	case PMM:
+		return BINANCE_API_PM_HTTP
 	}
 	return ""
 }

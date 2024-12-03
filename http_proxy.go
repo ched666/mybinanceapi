@@ -4,11 +4,12 @@ import (
 	"compress/gzip"
 	"crypto/tls"
 	"errors"
-	"github.com/robfig/cron/v3"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/robfig/cron/v3"
 )
 
 type RestProxy struct {
@@ -17,6 +18,7 @@ type RestProxy struct {
 	SpotWeight   ProxyWeight
 	FutureWeight ProxyWeight
 	SwapWeight   ProxyWeight
+	PmWeight     ProxyWeight //zsk修改
 }
 
 type ProxyWeight struct {
@@ -60,6 +62,7 @@ func init() {
 			proxy.SpotWeight.restore()
 			proxy.FutureWeight.restore()
 			proxy.SwapWeight.restore()
+			proxy.PmWeight.restore() //zsk修改
 		}
 	})
 	if err != nil {
@@ -83,6 +86,12 @@ func getBestProxyAndWeight(apiType ApiType) (*RestProxy, *ProxyWeight, error) {
 			proxyWeight = &proxy.FutureWeight
 		case SWAP:
 			proxyWeight = &proxy.SwapWeight
+		case PMU: //zsk修改
+			proxyWeight = &proxy.PmWeight
+		case PMC:
+			proxyWeight = &proxy.PmWeight
+		case PMM:
+			proxyWeight = &proxy.PmWeight
 		default:
 			return nil, nil, errors.New("apiType error")
 		}
@@ -136,6 +145,15 @@ func RequestWithHeader(urlStr string, method string, headerMap map[string]string
 			maxWeight = 2400
 		case BinanceGetRestHostByApiType(SWAP):
 			apiType = SWAP
+			maxWeight = 2400
+		case BinanceGetRestHostByApiType(PMU): //zsk修改
+			apiType = PMU
+			maxWeight = 2400
+		case BinanceGetRestHostByApiType(PMC):
+			apiType = PMC
+			maxWeight = 2400
+		case BinanceGetRestHostByApiType(PMM):
+			apiType = PMM
 			maxWeight = 2400
 		default:
 			return nil, errors.New("request host error")

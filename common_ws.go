@@ -20,6 +20,7 @@ const (
 	BINANCE_API_FUTURE_WS_STREAM      = "fstream.binance.com"
 	BINANCE_API_SWAP_WS_STREAM_GZIP   = "sdstream.binance.com"
 	BINANCE_API_FUTURE_WS_STREAM_GZIP = "sfstream.binance.com"
+	BINANCE_API_PM_WS_STREAM          = "fstream.binance.com/pm" //zsk修改
 
 	BINANCE_API_SPOT_WS_API   = "ws-api.binance.com:9443"
 	BINANCE_API_FUTURE_WS_API = "ws-fapi.binance.com"
@@ -55,6 +56,7 @@ const (
 	WS_ACCOUNT_PATH
 	WS_SPOT_API_PATH
 	WS_FUTURE_API_PATH
+	// WS_PM_API_PATH  //zsk
 )
 
 // 数据流订阅基础客户端
@@ -84,6 +86,9 @@ type WsStreamClient struct {
 	wsSpotPayloadMap   MySyncMap[int64, *WsSpotPayload]
 	wsFuturePayloadMap MySyncMap[int64, *WsFuturePayload]
 	wsSwapPayloadMap   MySyncMap[int64, *WsSwapPayload]
+	wsPmUPayloadMap    MySyncMap[int64, *WsPmUPayload] //zsk修改
+	wsPmCPayloadMap    MySyncMap[int64, *WsPmCPayload]
+	wsPmMPayloadMap    MySyncMap[int64, *WsPmMPayload]
 
 	//wsApi交易相关
 	waitWsApiResultMap MySyncMap[string, WsApiResultChan]
@@ -227,6 +232,9 @@ func (ws *WsStreamClient) initStructs() {
 	ws.wsSpotPayloadMap = NewMySyncMap[int64, *WsSpotPayload]()
 	ws.wsFuturePayloadMap = NewMySyncMap[int64, *WsFuturePayload]()
 	ws.wsSwapPayloadMap = NewMySyncMap[int64, *WsSwapPayload]()
+	ws.wsPmUPayloadMap = NewMySyncMap[int64, *WsPmUPayload]() //zsk修改
+	ws.wsPmCPayloadMap = NewMySyncMap[int64, *WsPmCPayload]()
+	ws.wsPmMPayloadMap = NewMySyncMap[int64, *WsPmMPayload]()
 
 	ws.waitWsApiResultMap = NewMySyncMap[string, WsApiResultChan]()
 	ws.wsApiWriterMu = &sync.Mutex{}
@@ -492,52 +500,99 @@ func (ws *WsStreamClient) handleResult(resultChan chan []byte, errChan chan erro
 					continue
 				}
 
-				//现货账户更新推送
+				//现货账户更新推送  //zsk修改 zsk新增统一账户全仓杠杆账户推送
 				if strings.Contains(string(data), "outboundAccountPosition") {
-					res, err := HandleWsPayloadResult[WsSpotPayloadOutboundAccountPosition](data)
-					if err != nil {
-						log.Error(err)
-						continue
-					}
-					ws.wsSpotPayloadMap.Range(func(_ int64, payload *WsSpotPayload) bool {
-						if payload.OutboundAccountPositionPayload != nil {
-							payload.OutboundAccountPositionPayload.resultChan <- *res
+					switch ws.apiType {
+					case SPOT:
+						res, err := HandleWsPayloadResult[WsSpotPayloadOutboundAccountPosition](data)
+						if err != nil {
+							log.Error(err)
+							continue
 						}
-						return true
-					})
+						ws.wsSpotPayloadMap.Range(func(_ int64, payload *WsSpotPayload) bool {
+							if payload.OutboundAccountPositionPayload != nil {
+								payload.OutboundAccountPositionPayload.resultChan <- *res
+							}
+							return true
+						})
+					case PMM:
+						res, err := HandleWsPayloadResult[WsPmMPayloadOutboundAccountPosition](data)
+						if err != nil {
+							log.Error(err)
+							continue
+						}
+						ws.wsPmMPayloadMap.Range(func(_ int64, payload *WsPmMPayload) bool {
+							if payload.OutboundAccountPositionPayload != nil {
+								payload.OutboundAccountPositionPayload.resultChan <- *res
+							}
+							return true
+						})
+					default:
+					}
 				}
 
-				//现货余额更新推送
+				//现货余额更新推送  //zsk修改 zsk新增统一账户全仓杠杆账户推送
 				if strings.Contains(string(data), "balanceUpdate") {
-					res, err := HandleWsPayloadResult[WsSpotPayloadBalanceUpdate](data)
-					if err != nil {
-						log.Error(err)
-						continue
-					}
-					ws.wsSpotPayloadMap.Range(func(_ int64, payload *WsSpotPayload) bool {
-						if payload.BalanceUpdatePayload != nil {
-							payload.BalanceUpdatePayload.resultChan <- *res
+					switch ws.apiType {
+					case SPOT:
+						res, err := HandleWsPayloadResult[WsSpotPayloadBalanceUpdate](data)
+						if err != nil {
+							log.Error(err)
+							continue
 						}
-						return true
-					})
+						ws.wsSpotPayloadMap.Range(func(_ int64, payload *WsSpotPayload) bool {
+							if payload.BalanceUpdatePayload != nil {
+								payload.BalanceUpdatePayload.resultChan <- *res
+							}
+							return true
+						})
+					case PMM:
+						res, err := HandleWsPayloadResult[WsPmMPayloadBalanceUpdate](data)
+						if err != nil {
+							log.Error(err)
+							continue
+						}
+						ws.wsPmMPayloadMap.Range(func(_ int64, payload *WsPmMPayload) bool {
+							if payload.BalanceUpdatePayload != nil {
+								payload.BalanceUpdatePayload.resultChan <- *res
+							}
+							return true
+						})
+					default:
+					}
 				}
-
-				//现货订单推送
+				//现货订单推送  //zsk修改 zsk新增统一账户全仓杠杆账户推送
 				if strings.Contains(string(data), "executionReport") {
-					res, err := HandleWsPayloadResult[WsSpotPayloadExecutionReport](data)
-					if err != nil {
-						log.Error(err)
-						continue
-					}
-					ws.wsSpotPayloadMap.Range(func(_ int64, payload *WsSpotPayload) bool {
-						if payload.ExecutionReportPayload != nil {
-							payload.ExecutionReportPayload.resultChan <- *res
+					switch ws.apiType {
+					case SPOT:
+						res, err := HandleWsPayloadResult[WsSpotPayloadExecutionReport](data)
+						if err != nil {
+							log.Error(err)
+							continue
 						}
-						return true
-					})
+						ws.wsSpotPayloadMap.Range(func(_ int64, payload *WsSpotPayload) bool {
+							if payload.ExecutionReportPayload != nil {
+								payload.ExecutionReportPayload.resultChan <- *res
+							}
+							return true
+						})
+					case PMM:
+						res, err := HandleWsPayloadResult[WsPmMPayloadExecutionReport](data)
+						if err != nil {
+							log.Error(err)
+							continue
+						}
+						ws.wsPmMPayloadMap.Range(func(_ int64, payload *WsPmMPayload) bool {
+							if payload.ExecutionReportPayload != nil {
+								payload.ExecutionReportPayload.resultChan <- *res
+							}
+							return true
+						})
+					default:
+					}
 				}
 
-				//U本位合约及币本位合约 余额/仓位 更新推送
+				//U本位合约及币本位合约 余额/仓位 更新推送  //zsk修改 zsk新增统一账户合约账户推送
 				if strings.Contains(string(data), "ACCOUNT_UPDATE") {
 					switch ws.apiType {
 					case FUTURE:
@@ -565,12 +620,36 @@ func (ws *WsStreamClient) handleResult(resultChan chan []byte, errChan chan erro
 							}
 							return true
 						})
+					case PMU:
+						res, err := HandleWsPayloadResult[WsPmUPayloadAccountUpdate](data)
+						if err != nil {
+							log.Error(err)
+							continue
+						}
+						ws.wsPmUPayloadMap.Range(func(_ int64, payload *WsPmUPayload) bool {
+							if payload.AccountUpdatePayload != nil {
+								payload.AccountUpdatePayload.resultChan <- *res
+							}
+							return true
+						})
+					case PMC:
+						res, err := HandleWsPayloadResult[WsPmCPayloadAccountUpdate](data)
+						if err != nil {
+							log.Error(err)
+							continue
+						}
+						ws.wsPmCPayloadMap.Range(func(_ int64, payload *WsPmCPayload) bool {
+							if payload.AccountUpdatePayload != nil {
+								payload.AccountUpdatePayload.resultChan <- *res
+							}
+							return true
+						})
 					default:
 					}
 
 				}
 
-				//U本位合约及币本位合约 订单/成交 更新推送
+				//U本位合约及币本位合约 订单/成交 更新推送   //zsk修改 zsk新增统一账户合约账户推送
 				if strings.Contains(string(data), "ORDER_TRADE_UPDATE") {
 					switch ws.apiType {
 					case FUTURE:
@@ -597,7 +676,30 @@ func (ws *WsStreamClient) handleResult(resultChan chan []byte, errChan chan erro
 							}
 							return true
 						})
-
+					case PMU:
+						res, err := HandleWsPayloadResult[WsPmUPayloadOrderTradeUpdate](data)
+						if err != nil {
+							log.Error(err)
+							continue
+						}
+						ws.wsPmUPayloadMap.Range(func(_ int64, payload *WsPmUPayload) bool {
+							if payload.OrderTradeUpdatePayload != nil {
+								payload.OrderTradeUpdatePayload.resultChan <- *res
+							}
+							return true
+						})
+					case PMC:
+						res, err := HandleWsPayloadResult[WsPmCPayloadOrderTradeUpdate](data)
+						if err != nil {
+							log.Error(err)
+							continue
+						}
+						ws.wsPmCPayloadMap.Range(func(_ int64, payload *WsPmCPayload) bool {
+							if payload.OrderTradeUpdatePayload != nil {
+								payload.OrderTradeUpdatePayload.resultChan <- *res
+							}
+							return true
+						})
 					default:
 					}
 				}
@@ -758,6 +860,12 @@ func getWsStreamWsApi(apiType ApiType, isGzip bool) string {
 		case TEST_NET:
 			return TEST_BINANCE_API_FUTURE_WS_STREAM
 		}
+	case PMU: //zsk修改
+		return BINANCE_API_PM_WS_STREAM
+	case PMC:
+		return BINANCE_API_PM_WS_STREAM
+	case PMM:
+		return BINANCE_API_PM_WS_STREAM
 	}
 	log.Error("AccountType Error is ", apiType)
 	return ""
